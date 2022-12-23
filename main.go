@@ -130,24 +130,30 @@ func main() {
 	json.Unmarshal([]byte(byteValue), &confResult)
 	json.Unmarshal([]byte(byteValue), &checkProc)
 
+	var emptyConfig bool
+
 	if confResult["connect"]["url"] == "" {
-		fmt.Println("Config error: Parameter [connect][url] is empty")
-		os.Exit(0)
+		fmt.Println("Config fatal error: Parameter [connect][url] is empty")
+		emptyConfig = true
 	}
 	if confResult["connect"]["token"] == "" {
-		fmt.Println("Config error: Parameter [connect][token] is empty")
-		os.Exit(0)
+		fmt.Println("Config fatal error: Parameter [connect][token] is empty")
+		emptyConfig = true
 	}
 	if confResult["connect"]["pin"] == "" {
-		fmt.Println("Config error: Parameter [connect][pin] is empty")
-		os.Exit(0)
+		fmt.Println("Config fatal error: Parameter [connect][pin] is empty")
+		emptyConfig = true
 	}
 	if confResult["connect"]["batch"] == "" {
-		fmt.Println("Config error: Parameter [connect][batch] is empty")
-		os.Exit(0)
+		fmt.Println("Config fatal error: Parameter [connect][batch] is empty")
+		emptyConfig = true
 	}
 	if confResult["connect"]["path"] == "" {
-		fmt.Println("Config error: Parameter [connect][path] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][path] is empty")
+		emptyConfig = true
+	}
+
+	if emptyConfig {
 		os.Exit(0)
 	}
 
