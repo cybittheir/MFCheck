@@ -133,23 +133,23 @@ func main() {
 	var emptyConfig bool
 
 	if confResult["connect"]["url"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][url] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][url] is empty OR JSON structure error")
 		emptyConfig = true
 	}
 	if confResult["connect"]["token"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][token] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][token] is empty OR JSON structure error")
 		emptyConfig = true
 	}
 	if confResult["connect"]["pin"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][pin] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][pin] is empty OR JSON structure error")
 		emptyConfig = true
 	}
 	if confResult["connect"]["batch"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][batch] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][batch] is empty OR JSON structure error")
 		emptyConfig = true
 	}
 	if confResult["connect"]["path"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][path] is empty")
+		fmt.Println("Config fatal error: Parameter [connect][path] is empty OR JSON structure error")
 		emptyConfig = true
 	}
 
