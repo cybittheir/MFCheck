@@ -163,6 +163,11 @@ func main() {
 	batchName := fmt.Sprintf("%s", confResult["connect"]["batch"])
 	batchPath := fmt.Sprintf("%s", confResult["connect"]["path"])
 
+	if _, err := os.Stat(batchPath + batchName); err != nil {
+		fmt.Println("Fatal error. Batch file not exists. Check its path")
+		os.Exit(0)
+	}
+
 	var procList string
 
 	if len(checkProc["check"]["process"]) > 0 {
@@ -176,8 +181,9 @@ func main() {
 
 				isRunning, _ := isProcRunning(batchPath, batchName, forCheck)
 
-				if isRunning {
-					forCheckParam := fmt.Sprintf("%s", i)
+				forCheckParam := fmt.Sprintf("%s", i)
+
+				if !isRunning {
 					procList = procList + "&" + forCheckParam + "=1"
 				}
 			}
@@ -209,7 +215,9 @@ func main() {
 
 	dt := time.Now()
 
-	queryTIME := "&mfdate=" + dt.Format("2006-02-01") + "&mftime=" + dt.Format("15:04:05")
+	//	queryTIME := "&mfdate=" + dt.Format("2006-02-01") + "&mftime=" + dt.Format("15:04:05")
+
+	queryTIME := "&mtime=" + dt.Format("2006-02-01") + " " + dt.Format("15:04")
 
 	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList
 
