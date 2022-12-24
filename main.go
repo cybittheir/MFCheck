@@ -23,7 +23,7 @@ var (
 )
 
 func getIP() string {
-
+	// getting PCs IP-address
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
@@ -75,7 +75,7 @@ func getIP() string {
 var getTickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 func isProcRunning(batchPath string, batchName string, name string) (bool, error) {
-
+	//check if process is running. Windows tasklist in batchfile uses
 	fmt.Print(".")
 
 	cmd := exec.Command(batchPath+batchName, name)
@@ -96,6 +96,7 @@ func isProcRunning(batchPath string, batchName string, name string) (bool, error
 }
 
 func getUptime() (time.Duration, error) {
+	//Getting uptime of PC
 	ret, _, err := getTickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
 		return time.Duration(0), err
@@ -183,7 +184,9 @@ func main() {
 
 				forCheckParam := fmt.Sprintf("%s", i)
 
-				if !isRunning {
+				if isRunning {
+					procList = procList + "&" + forCheckParam + "=9"
+				} else {
 					procList = procList + "&" + forCheckParam + "=1"
 				}
 			}
@@ -215,9 +218,7 @@ func main() {
 
 	dt := time.Now()
 
-	//	queryTIME := "&mfdate=" + dt.Format("2006-02-01") + "&mftime=" + dt.Format("15:04:05")
-
-	queryTIME := "&mftime=" + dt.Format("2006-02-01") + " " + dt.Format("15:04")
+	queryTIME := "&mfdate=" + dt.Format("2006-01-02") + "&mftime=" + dt.Format("15:04") + "&mftimefull=" + dt.Format("15:04:05")
 
 	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList
 
