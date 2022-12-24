@@ -217,7 +217,7 @@ func main() {
 
 	//	queryTIME := "&mfdate=" + dt.Format("2006-02-01") + "&mftime=" + dt.Format("15:04:05")
 
-	queryTIME := "&mtime=" + dt.Format("2006-02-01") + " " + dt.Format("15:04")
+	queryTIME := "&mftime=" + dt.Format("2006-02-01") + " " + dt.Format("15:04")
 
 	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList
 
