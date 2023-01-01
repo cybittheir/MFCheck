@@ -95,6 +95,31 @@ func isProcRunning(batchPath string, batchName string, name string) (bool, error
 	return false, nil
 }
 
+func checkHost(host map[string]string) (bool, error) {
+
+	hostIP := host["ip"]
+	port := host["port"]
+	address := net.JoinHostPort(hostIP, port)
+	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
+	results := make(map[string]bool)
+
+	if err != nil {
+		results[port] = false
+		return false, err
+		// todo log handler
+	} else {
+		if conn != nil {
+			results[port] = true
+			_ = conn.Close()
+			return results[port], nil
+		} else {
+			results[port] = false
+			return false, nil
+		}
+	}
+
+}
+
 func getUptime() (time.Duration, error) {
 	ret, _, err := getTickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
@@ -126,9 +151,11 @@ func main() {
 
 	var confResult map[string]map[string]string
 	var checkProc map[string]map[string]map[string]string
+	var checkConn map[string]map[string]map[string]map[string]string
 
 	json.Unmarshal([]byte(byteValue), &confResult)
 	json.Unmarshal([]byte(byteValue), &checkProc)
+	json.Unmarshal([]byte(byteValue), &checkConn)
 
 	var emptyConfig bool
 
@@ -196,6 +223,27 @@ func main() {
 		fmt.Println("Warning! Section [check][process] in conf.json file is needed for cheching running processes")
 	}
 
+	var deviceList string
+
+	if len(checkConn["check"]["device"]) > 0 {
+		fmt.Println("devices check")
+		for i, v := range checkConn["check"]["device"] {
+			if len(v) > 0 {
+
+				deviceOk, _ := checkHost(v)
+
+				if deviceOk {
+					fmt.Println(i, " is OK")
+				} else {
+					fmt.Println(i, " Failed")
+					deviceList = deviceList + "&x_" + i + "=failed"
+
+				}
+			}
+
+		}
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Println(err)
@@ -219,7 +267,7 @@ func main() {
 
 	queryTIME := "&mftime=" + dt.Format("2006-02-01") + " " + dt.Format("15:04")
 
-	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList
+	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList + deviceList
 
 	fmt.Println("Sending info to server:" + urlQuery)
 
