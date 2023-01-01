@@ -236,12 +236,15 @@ func main() {
 				deviceOk, _ := checkHost(v)
 
 				if deviceOk {
-					fmt.Println(i, " is OK")
+					fmt.Println("...", i, "is OK")
 				} else {
-					fmt.Println(i, " Failed")
+					fmt.Println("...", i, "Failed")
 					deviceList = deviceList + "&x_" + i + "=failed"
 
 				}
+			} else {
+
+				fmt.Println(i, "!error conf record!")
 			}
 
 		}
