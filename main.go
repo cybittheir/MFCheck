@@ -100,7 +100,7 @@ func checkHost(host map[string]string) (bool, error) {
 	hostIP := host["ip"]
 	port := host["port"]
 	address := net.JoinHostPort(hostIP, port)
-	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
+	conn, err := net.DialTimeout("tcp", address, time.Second)
 	results := make(map[string]bool)
 
 	if err != nil {
@@ -229,19 +229,23 @@ func main() {
 	var deviceList string
 
 	if len(checkConn["check"]["device"]) > 0 {
-		fmt.Println("devices check")
+		fmt.Println("devices checking:")
 		for i, v := range checkConn["check"]["device"] {
 			if len(v) > 0 {
 
 				deviceOk, _ := checkHost(v)
 
 				if deviceOk {
-					fmt.Println(i, " is OK")
+					fmt.Println("...", i, "is OK")
 				} else {
-					fmt.Println(i, " Failed")
+					fmt.Println("...", i, " Failed")
 					deviceList = deviceList + "&x_" + i + "=failed"
 
 				}
+			} else {
+
+				fmt.Println(i, "!error conf record!")
+
 			}
 
 		}
