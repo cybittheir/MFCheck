@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	appname string
 	version string
 	build   string
 )
@@ -130,6 +131,8 @@ func getUptime() (time.Duration, error) {
 }
 
 func main() {
+
+	fmt.Println(appname, "ver.", version, "build", build)
 
 	// Open our jsonFile
 
