@@ -16,6 +16,12 @@ conf.json:
 			"process": {
 				"param1": "app_name_1",
 				"param2": "app_name_2"
+			},			
+			"device":{
+				"camera":{
+					"ip":"192.168.14.73",
+					"port":"80"
+				}
 			}
 	}
 }
