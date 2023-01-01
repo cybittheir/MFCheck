@@ -132,7 +132,7 @@ func getUptime() (time.Duration, error) {
 
 func main() {
 
-	fmt.Println(appname, "ver.", version, "build", build)
+	fmt.Println(appname, version, "build", build)
 
 	// Open our jsonFile
 
@@ -241,7 +241,7 @@ func main() {
 				if deviceOk {
 					fmt.Println("...", i, "is OK")
 				} else {
-					fmt.Println("...", i, " Failed")
+					fmt.Println("...", i, "Failed")
 					deviceList = deviceList + "&x_" + i + "=failed"
 
 				}
