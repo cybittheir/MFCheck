@@ -132,9 +132,39 @@ func getUptime() (time.Duration, error) {
 
 func main() {
 
-	fmt.Println(appname, version, "build", build)
+	fmt.Println(appname, version, "build", build, "Copyright (C) Aleksandr Lovin aka Cybittheir. 2023")
 
 	// Open our jsonFile
+
+	if len(os.Args) != 1 {
+		arg := os.Args[1]
+
+		if arg == "-h" || arg == "-help" {
+
+			fmt.Println("")
+			fmt.Println("Use conf.json file configuration:")
+			fmt.Println("connect:")
+			fmt.Println("   url: https://[url]")
+			fmt.Println("   token: [token] // ?UID=token")
+			fmt.Println("   pin: 000000 // ?pin=[pin]")
+			fmt.Println("   batch: batch.bat // context with tasklist.exe /FO CSV /NH | find '%1'")
+			fmt.Println("   path: C:\\[PATH]\\ //path to batch-file")
+			fmt.Println("check:")
+			fmt.Println("   process: //tests applications are running. =9 if OK, =1 if failed")
+			fmt.Println("      app1: app1.EXE")
+			fmt.Println("      app2: app2.exe")
+			fmt.Println("   device: //tests hosts are reachable. =failed if NOT")
+			fmt.Println("      dev1:")
+			fmt.Println("         ip: 192.168.0.1")
+			fmt.Println("         port: 80")
+			fmt.Println("      dev2:")
+			fmt.Println("         ip: 192.168.0.2")
+			fmt.Println("         port: 80")
+			fmt.Println("")
+
+			os.Exit(0)
+		}
+	}
 
 	jsonFile, err := os.Open("conf.json")
 
@@ -185,6 +215,7 @@ func main() {
 	}
 
 	if emptyConfig {
+		fmt.Println("use -help argument")
 		os.Exit(0)
 	}
 
@@ -196,6 +227,7 @@ func main() {
 
 	if _, err := os.Stat(batchPath + batchName); err != nil {
 		fmt.Println("Fatal error. Batch file not exists. Check its path")
+		fmt.Println("use -help argument")
 		os.Exit(0)
 	}
 
@@ -257,6 +289,7 @@ func main() {
 	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Println(err)
+		fmt.Println("use -help argument")
 		os.Exit(1)
 	}
 
