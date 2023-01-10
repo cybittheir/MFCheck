@@ -34,37 +34,89 @@ func getIP() string {
 	// handle err
 	for _, i := range ifaces {
 		addrs, err := i.Addrs()
+		status := i.Flags.String()
+
+		statuses := strings.Split(status, "|")
+
 		if err != nil {
 			fmt.Println(err)
-		}
-		// handle err
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-
-			// process IP address
-
-			tpart := strings.Split(ip.String(), ".")
-
-			if len(tpart) == 4 {
-				t0, _ := strconv.Atoi(tpart[0])
-				t1, _ := strconv.Atoi(tpart[1])
-				t2, _ := strconv.Atoi(tpart[2])
-				t3, _ := strconv.Atoi(tpart[3])
-
-				strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
-
-				if t0 == 192 && t1 == 168 {
-					//					fmt.Println(ip)
-					//					fmt.Printf(strIP)
-					return strIP
+		} else if statuses[0] == "up" {
+			// handle err
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
 				}
+				// process IP address
 
+				tpart := strings.Split(ip.String(), ".")
+
+				if len(tpart) == 4 {
+					t0, _ := strconv.Atoi(tpart[0])
+					t1, _ := strconv.Atoi(tpart[1])
+					t2, _ := strconv.Atoi(tpart[2])
+					t3, _ := strconv.Atoi(tpart[3])
+
+					strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
+
+					if t0 == 192 && t1 == 168 {
+						//					fmt.Println(ip)
+						//					fmt.Printf(strIP)
+						return strIP
+					}
+
+				}
+			}
+		}
+	}
+	return ""
+
+}
+
+func getMAC() string {
+	// getting PCs interfaces
+	ifaces, err := net.Interfaces()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// handle err
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		status := i.Flags.String()
+		mac := i.HardwareAddr.String()
+
+		statuses := strings.Split(status, "|")
+
+		if err != nil {
+			fmt.Println(err)
+		} else if statuses[0] == "up" {
+			// handle err
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+				// process IP address
+
+				tpart := strings.Split(ip.String(), ".")
+
+				if len(tpart) == 4 {
+					t0, _ := strconv.Atoi(tpart[0])
+					t1, _ := strconv.Atoi(tpart[1])
+
+					if t0 == 192 && t1 == 168 {
+						return mac
+					}
+
+				}
 			}
 
 		}
@@ -151,7 +203,7 @@ func main() {
 			fmt.Println("   path: C:\\[PATH]\\ //path to batch-file")
 			fmt.Println("check:")
 			fmt.Println("   process: //tests applications are running. =9 if OK, =1 if failed")
-			fmt.Println("      app1: app1.EXE")
+			fmt.Println("      app1: app1.exe")
 			fmt.Println("      app2: app2.exe")
 			fmt.Println("   device: //tests hosts are reachable. =failed if NOT")
 			fmt.Println("      dev1:")
@@ -159,7 +211,7 @@ func main() {
 			fmt.Println("         port: 80")
 			fmt.Println("      dev2:")
 			fmt.Println("         ip: 192.168.0.2")
-			fmt.Println("         port: 80")
+			fmt.Println("         port: 22")
 			fmt.Println("")
 
 			os.Exit(0)
@@ -293,14 +345,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	uptime, err := getUptime()
+	uptime, _ := getUptime()
 
-	CompUptime, err := time.ParseDuration(fmt.Sprint(uptime))
+	CompUptime, _ := time.ParseDuration(fmt.Sprint(uptime))
 
 	PCUp := fmt.Sprint(int(CompUptime.Minutes()))
 
 	queryPIN := "&mfpin=" + pin
 	queryIP := "&mfip=" + getIP()
+	queryMAC := "&mfmac=" + getMAC()
 	queryUPTime := "&mfuptime=" + PCUp
 	queryPCName := "&mfname=" + hostname
 
@@ -308,7 +361,7 @@ func main() {
 
 	queryTIME := "&mfdate=" + dt.Format("2006-01-02") + "&mftime=" + dt.Format("15:04") + "&mftimefull=" + dt.Format("15:04:05")
 
-	urlQuery := queryPIN + queryTIME + queryIP + queryUPTime + queryPCName + procList + deviceList
+	urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
 
 	fmt.Println("Sending info to server:" + urlQuery)
 
