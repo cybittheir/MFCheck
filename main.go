@@ -63,8 +63,8 @@ func getIP() string {
 					strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
 
 					if t0 == 192 && t1 == 168 {
-						//					fmt.Println(ip)
-						//					fmt.Printf(strIP)
+						return strIP
+					} else if t0 == 10 {
 						return strIP
 					}
 
@@ -127,9 +127,11 @@ func getMAC() string {
 
 var getTickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
-func isProcRunning(batchPath string, batchName string, name string) (bool, error) {
+func isProcRunning(batchPath string, batchName string, name string, silent bool) (bool, error) {
 	//check if process is running. Windows tasklist in batchfile uses
-	fmt.Print(".")
+	if !silent {
+		fmt.Print(".")
+	}
 
 	cmd := exec.Command(batchPath+batchName, name)
 	cmd.Dir = batchPath
@@ -137,12 +139,16 @@ func isProcRunning(batchPath string, batchName string, name string) (bool, error
 	out, err := cmd.Output()
 
 	if err != nil {
-		fmt.Print(".")
+		if !silent {
+			fmt.Print(".")
+		}
 		return false, err
 	}
 
 	if bytes.Contains(out, []byte(name)) {
-		fmt.Print(".")
+		if !silent {
+			fmt.Print(".")
+		}
 		return true, nil
 	}
 	return false, nil
@@ -173,6 +179,29 @@ func checkHost(host map[string]string) (bool, error) {
 
 }
 
+func sendQuery(url string, token string, urlQuery string, silent bool) (bool, error) {
+	// Make HTTP GET request
+	response, err := http.Get(url + "?UID=" + token + urlQuery)
+	if err != nil {
+		log.Fatal(err)
+		return false, err
+	} else {
+		if !silent {
+			fmt.Println("Sending info to server:")
+			fmt.Println(urlQuery)
+		}
+		// Copy data from the response to standard output
+		_, err := io.Copy(os.Stdout, response.Body)
+		if err != nil {
+			log.Fatal(err)
+			return false, err
+		}
+	}
+	defer response.Body.Close()
+	return true, nil
+
+}
+
 func getUptime() (time.Duration, error) {
 	//Getting uptime of PC
 	ret, _, err := getTickCount.Call()
@@ -186,6 +215,7 @@ func main() {
 
 	fmt.Println(appname, version, "build", build, "Copyright (C) Aleksandr Lovin aka Cybittheir. 2023")
 
+	silent := false
 	// Open our jsonFile
 
 	if len(os.Args) != 1 {
@@ -196,6 +226,7 @@ func main() {
 			fmt.Println("")
 			fmt.Println("Use conf.json file configuration:")
 			fmt.Println("connect:")
+			fmt.Println("   period: 60 // seconds, 60 sec minimum")
 			fmt.Println("   url: https://[url]")
 			fmt.Println("   token: [token] // ?UID=token")
 			fmt.Println("   pin: 000000 // ?pin=[pin]")
@@ -213,8 +244,13 @@ func main() {
 			fmt.Println("         ip: 192.168.0.2")
 			fmt.Println("         port: 22")
 			fmt.Println("")
+			fmt.Println("Use -s (OR -silent) option for hiding all messages except errors")
+			fmt.Println("Use Ctrl+C for exit")
+			fmt.Println("")
 
 			os.Exit(0)
+		} else if arg == "-s" || arg == "-silent" {
+			silent = true
 		}
 	}
 
@@ -227,7 +263,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Successfully Opened conf.json")
+	if !silent {
+		fmt.Println("Successfully Opened conf.json")
+	}
 
 	// defer the closing of our jsonFile so that we can parse it later on
 
@@ -244,7 +282,12 @@ func main() {
 	json.Unmarshal([]byte(byteValue), &checkConn)
 
 	var emptyConfig bool
+	var timePeriod int
 
+	if confResult["connect"]["period"] == "" {
+		fmt.Println("Config fatal error: Parameter [connect][period] is empty OR JSON structure error")
+		emptyConfig = true
+	}
 	if confResult["connect"]["url"] == "" {
 		fmt.Println("Config fatal error: Parameter [connect][url] is empty OR JSON structure error")
 		emptyConfig = true
@@ -271,114 +314,137 @@ func main() {
 		os.Exit(0)
 	}
 
-	url := fmt.Sprintf("%s", confResult["connect"]["url"])
-	token := fmt.Sprintf("%s", confResult["connect"]["token"])
-	pin := fmt.Sprintf("%s", confResult["connect"]["pin"])
-	batchName := fmt.Sprintf("%s", confResult["connect"]["batch"])
-	batchPath := fmt.Sprintf("%s", confResult["connect"]["path"])
+	period := confResult["connect"]["period"]
+	url := confResult["connect"]["url"]
+	token := confResult["connect"]["token"]
+	pin := confResult["connect"]["pin"]
+	batchName := confResult["connect"]["batch"]
+	batchPath := confResult["connect"]["path"]
+	timePeriod, _ = strconv.Atoi(period)
+
+	if timePeriod < 60 {
+		timePeriod = 60
+	}
 
 	if _, err := os.Stat(batchPath + batchName); err != nil {
 		fmt.Println("Fatal error. Batch file not exists. Check its path")
 		fmt.Println("use -help argument")
 		os.Exit(0)
 	}
+	// начало цикла проверки
+	for {
+		startTimeNow := time.Now()
+		startTime := startTimeNow.Unix()
 
-	var procList string
+		procList := ""
+		deviceList := ""
 
-	if len(checkProc["check"]["process"]) > 0 {
+		if len(checkProc["check"]["process"]) > 0 {
 
-		fmt.Printf("%s", "Check Processes ")
+			if !silent {
+				fmt.Printf("%s", "Check Processes ")
+			}
 
-		for i, v := range checkProc["check"]["process"] {
+			for i, v := range checkProc["check"]["process"] {
 
-			if v != "" {
-				forCheck := fmt.Sprintf("%s", v)
+				if v != "" {
+					forCheck := v
 
-				isRunning, _ := isProcRunning(batchPath, batchName, forCheck)
+					isRunning, _ := isProcRunning(batchPath, batchName, forCheck, silent)
 
-				forCheckParam := fmt.Sprintf("%s", i)
+					forCheckParam := i
 
-				if isRunning {
-					procList = procList + "&" + forCheckParam + "=9"
-				} else {
-					procList = procList + "&" + forCheckParam + "=1"
+					if isRunning {
+						procList = procList + "&" + forCheckParam + "=9"
+					} else {
+						procList = procList + "&" + forCheckParam + "=1"
+					}
 				}
+			}
+
+			if !silent {
+				fmt.Println(" Finished")
+			}
+
+		} else {
+
+			fmt.Println("Warning! Section [check][process] in conf.json file is needed for cheching running processes")
+			fmt.Println("use -help argument")
+		}
+
+		if len(checkConn["check"]["device"]) > 0 {
+			if !silent {
+				fmt.Println("devices checking:")
+			}
+			for i, v := range checkConn["check"]["device"] {
+				if len(v) > 0 {
+
+					deviceOk, _ := checkHost(v)
+
+					if deviceOk {
+						if !silent {
+							fmt.Println("...", i, "is OK")
+						}
+					} else {
+						if !silent {
+							fmt.Println("...", i, "Failed")
+						}
+						deviceList = deviceList + "&x_" + i + "=failed"
+
+					}
+				} else {
+
+					fmt.Println(i, "!error conf record!")
+
+				}
+
 			}
 		}
 
-		fmt.Println(" Finished")
-
-	} else {
-
-		fmt.Println("Warning! Section [check][process] in conf.json file is needed for cheching running processes")
-	}
-
-	var deviceList string
-
-	if len(checkConn["check"]["device"]) > 0 {
-		fmt.Println("devices checking:")
-		for i, v := range checkConn["check"]["device"] {
-			if len(v) > 0 {
-
-				deviceOk, _ := checkHost(v)
-
-				if deviceOk {
-					fmt.Println("...", i, "is OK")
-				} else {
-					fmt.Println("...", i, "Failed")
-					deviceList = deviceList + "&x_" + i + "=failed"
-
-				}
-			} else {
-
-				fmt.Println(i, "!error conf record!")
-
-			}
-
+		hostname, err := os.Hostname()
+		if err != nil {
+			fmt.Println(err)
 		}
+
+		uptime, _ := getUptime()
+
+		CompUptime, _ := time.ParseDuration(fmt.Sprint(uptime))
+
+		PCUp := fmt.Sprint(int(CompUptime.Minutes()))
+
+		queryPIN := "&mfpin=" + pin
+		queryIP := "&mfip=" + getIP()
+		queryMAC := "&mfmac=" + getMAC()
+		queryUPTime := "&mfuptime=" + PCUp
+		queryPCName := "&mfname=" + hostname
+
+		dt := time.Now()
+
+		queryTIME := "&mfdate=" + dt.Format("2006-01-02") + "&mftime=" + dt.Format("15:04") + "&mftimefull=" + dt.Format("15:04:05")
+
+		urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
+
+		procList = ""
+
+		_, err = sendQuery(url, token, urlQuery, silent)
+		if err != nil {
+			log.Fatal(err)
+			time.Sleep(15 * time.Second)
+		} else {
+			if !silent {
+				fmt.Println("\n-----------------")
+				log.Println("Success.")
+			}
+			jobTimeNow := time.Now()
+			jobTime := jobTimeNow.Unix() - startTime
+
+			usePeriod := timePeriod - int(jobTime)
+			if !silent {
+				fmt.Println("\n\nSleeping for " + period + " seconds... Zzz...\n")
+			}
+			time.Sleep(time.Duration(usePeriod) * time.Second)
+		}
+
 	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("use -help argument")
-		os.Exit(1)
-	}
-
-	uptime, _ := getUptime()
-
-	CompUptime, _ := time.ParseDuration(fmt.Sprint(uptime))
-
-	PCUp := fmt.Sprint(int(CompUptime.Minutes()))
-
-	queryPIN := "&mfpin=" + pin
-	queryIP := "&mfip=" + getIP()
-	queryMAC := "&mfmac=" + getMAC()
-	queryUPTime := "&mfuptime=" + PCUp
-	queryPCName := "&mfname=" + hostname
-
-	dt := time.Now()
-
-	queryTIME := "&mfdate=" + dt.Format("2006-01-02") + "&mftime=" + dt.Format("15:04") + "&mftimefull=" + dt.Format("15:04:05")
-
-	urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
-
-	fmt.Println("Sending info to server:" + urlQuery)
-
-	// Make HTTP GET request
-	response, err := http.Get(url + "?UID=" + token + urlQuery)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer response.Body.Close()
-
-	// Copy data from the response to standard output
-	n, err := io.Copy(os.Stdout, response.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("\n-----------------")
-	log.Println("Number of bytes copied to STDOUT:", n)
 
 }
