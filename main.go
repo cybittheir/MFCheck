@@ -18,66 +18,20 @@ import (
 )
 
 var (
-	appname string
-	version string
-	build   string
+	appname      string
+	version      string
+	build        string
+	getTickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 )
 
-func getIP() string {
-	// getting PCs IP-address
-	ifaces, err := net.Interfaces()
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// handle err
-	for _, i := range ifaces {
-		addrs, err := i.Addrs()
-		status := i.Flags.String()
-
-		statuses := strings.Split(status, "|")
-
-		if err != nil {
-			fmt.Println(err)
-		} else if statuses[0] == "up" {
-			// handle err
-			for _, addr := range addrs {
-				var ip net.IP
-				switch v := addr.(type) {
-				case *net.IPNet:
-					ip = v.IP
-				case *net.IPAddr:
-					ip = v.IP
-				}
-				// process IP address
-
-				tpart := strings.Split(ip.String(), ".")
-
-				if len(tpart) == 4 {
-					t0, _ := strconv.Atoi(tpart[0])
-					t1, _ := strconv.Atoi(tpart[1])
-					t2, _ := strconv.Atoi(tpart[2])
-					t3, _ := strconv.Atoi(tpart[3])
-
-					strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
-
-					if t0 == 192 && t1 == 168 {
-						return strIP
-					} else if t0 == 10 {
-						return strIP
-					}
-
-				}
-			}
-		}
-	}
-	return ""
-
+type netMACIP struct {
+	ip  string
+	mac string
 }
 
-func getMAC() string {
-	// getting PCs interfaces
+func getIP() netMACIP {
+	// getting PCs IP-address
+
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
@@ -111,21 +65,23 @@ func getMAC() string {
 				if len(tpart) == 4 {
 					t0, _ := strconv.Atoi(tpart[0])
 					t1, _ := strconv.Atoi(tpart[1])
+					t2, _ := strconv.Atoi(tpart[2])
+					t3, _ := strconv.Atoi(tpart[3])
 
-					if t0 == 192 && t1 == 168 {
-						return mac
+					strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
+
+					if (t0 == 192 && t1 == 168) || (t0 == 10) {
+						return netMACIP{strIP, mac}
 					}
 
 				}
 			}
-
 		}
 	}
-	return ""
+
+	return netMACIP{}
 
 }
-
-var getTickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 func isProcRunning(batchPath string, batchName string, name string, silent bool) (bool, error) {
 	//check if process is running. Windows tasklist in batchfile uses
@@ -179,6 +135,15 @@ func checkHost(host map[string]string) (bool, error) {
 
 }
 
+func getUptime() (time.Duration, error) {
+	//Getting uptime of PC
+	ret, _, err := getTickCount.Call()
+	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
+		return time.Duration(0), err
+	}
+	return time.Duration(ret) * time.Millisecond, nil
+}
+
 func sendQuery(url string, token string, urlQuery string, silent bool) (bool, error) {
 	// Make HTTP GET request
 	response, err := http.Get(url + "?UID=" + token + urlQuery)
@@ -202,23 +167,28 @@ func sendQuery(url string, token string, urlQuery string, silent bool) (bool, er
 
 }
 
-func getUptime() (time.Duration, error) {
-	//Getting uptime of PC
-	ret, _, err := getTickCount.Call()
-	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		return time.Duration(0), err
+func timer(startTime int64, timePeriod int, silent bool) {
+
+	jobTimeNow := time.Now()
+	jobTime := jobTimeNow.Unix() - startTime
+
+	usePeriod := timePeriod - int(jobTime)
+	period := fmt.Sprintf("%d", timePeriod)
+
+	if !silent {
+		fmt.Println("\n\nSleeping for " + period + " seconds... Zzz...\n")
 	}
-	return time.Duration(ret) * time.Millisecond, nil
+
+	time.Sleep(time.Duration(usePeriod) * time.Second)
+
 }
 
-func main() {
-
-	fmt.Println(appname, version, "build", build, "Copyright (C) Aleksandr Lovin aka Cybittheir. 2023")
+func initArgs() (bool, error) {
 
 	silent := false
-	// Open our jsonFile
 
 	if len(os.Args) != 1 {
+
 		arg := os.Args[1]
 
 		if arg == "-h" || arg == "-help" {
@@ -251,8 +221,23 @@ func main() {
 			os.Exit(0)
 		} else if arg == "-s" || arg == "-silent" {
 			silent = true
+			return silent, nil
 		}
 	}
+
+	return silent, nil
+
+}
+
+func main() {
+
+	fmt.Println(appname, version, "build", build)
+	fmt.Println("Simple agent for checking links to devices and running applications on remote PC")
+	fmt.Println("https://github.com/cybittheir/MFCheck")
+
+	silent, _ := initArgs()
+
+	// Open our jsonFile
 
 	jsonFile, err := os.Open("conf.json")
 
@@ -412,9 +397,11 @@ func main() {
 
 		PCUp := fmt.Sprint(int(CompUptime.Minutes()))
 
+		netResult := getIP()
+
 		queryPIN := "&mfpin=" + pin
-		queryIP := "&mfip=" + getIP()
-		queryMAC := "&mfmac=" + getMAC()
+		queryIP := "&mfip=" + netResult.ip
+		queryMAC := "&mfmac=" + netResult.mac
 		queryUPTime := "&mfuptime=" + PCUp
 		queryPCName := "&mfname=" + hostname
 
@@ -424,25 +411,21 @@ func main() {
 
 		urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
 
-		procList = ""
-
 		_, err = sendQuery(url, token, urlQuery, silent)
+
+		procList = ""
+		queryTIME = ""
+		urlQuery = ""
+
 		if err != nil {
 			log.Fatal(err)
-			time.Sleep(15 * time.Second)
+			time.Sleep(5 * time.Second)
 		} else {
 			if !silent {
 				fmt.Println("\n-----------------")
 				log.Println("Success.")
 			}
-			jobTimeNow := time.Now()
-			jobTime := jobTimeNow.Unix() - startTime
-
-			usePeriod := timePeriod - int(jobTime)
-			if !silent {
-				fmt.Println("\n\nSleeping for " + period + " seconds... Zzz...\n")
-			}
-			time.Sleep(time.Duration(usePeriod) * time.Second)
+			timer(startTime, timePeriod, silent)
 		}
 
 	}
