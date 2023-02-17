@@ -58,8 +58,8 @@ func getIP() netMACIP {
 				case *net.IPAddr:
 					ip = v.IP
 				}
-				// process IP address
 
+				// process IP address
 				tpart := strings.Split(ip.String(), ".")
 
 				if len(tpart) == 4 {
@@ -68,9 +68,8 @@ func getIP() netMACIP {
 					t2, _ := strconv.Atoi(tpart[2])
 					t3, _ := strconv.Atoi(tpart[3])
 
-					strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
-
-					if (t0 == 192 && t1 == 168) || (t0 == 10) {
+					if (t0 == 10) || (t0 == 192 && t1 == 168) || (t0 == 172 && t1 > 15 && t1 < 32) {
+						strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
 						return netMACIP{strIP, mac}
 					}
 

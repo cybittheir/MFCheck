@@ -10,7 +10,8 @@ conf.json:
 		"token": "[token]",
 		"pin": "[PIN]",
 		"batch": "filename.bat",
-		"path": "C:\\PATH\\"
+		"path": "C:\\PATH\\",
+		"period": "61" [sec]
 	},
 	"check": {
 			"process": {
@@ -25,3 +26,9 @@ conf.json:
 			}
 	}
 }
+
+Options:
+-s (OR -silent): hiding all messages except errors
+-h (OR -help): this message
+
+Ctrl+C for exit
