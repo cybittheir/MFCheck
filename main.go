@@ -147,7 +147,6 @@ func sendQuery(url string, token string, urlQuery string, silent bool) (bool, er
 	// Make HTTP GET request
 	response, err := http.Get(url + "?UID=" + token + urlQuery)
 	if err != nil {
-		log.Fatal(err)
 		return false, err
 	} else {
 		if !silent {
@@ -157,7 +156,6 @@ func sendQuery(url string, token string, urlQuery string, silent bool) (bool, er
 		// Copy data from the response to standard output
 		_, err := io.Copy(os.Stdout, response.Body)
 		if err != nil {
-			log.Fatal(err)
 			return false, err
 		}
 	}
@@ -243,6 +241,7 @@ func main() {
 	// if we os.Open returns an error then handle it
 
 	if err != nil {
+		fmt.Println("Cannot open conf.json")
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -417,8 +416,12 @@ func main() {
 		urlQuery = ""
 
 		if err != nil {
-			log.Fatal(err)
-			time.Sleep(5 * time.Second)
+			//			log.Fatal(err)
+			lessInfoErr := strings.Replace(err.Error(), token, "[token]", -1)
+			lessInfoErr = strings.Replace(lessInfoErr, pin, "[pin]", -1)
+
+			log.Println(lessInfoErr)
+			time.Sleep(15 * time.Second)
 		} else {
 			if !silent {
 				fmt.Println("\n-----------------")
