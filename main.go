@@ -51,6 +51,7 @@ func getIP() netMACIP {
 		} else if statuses[0] == "up" {
 			// handle err
 			for _, addr := range addrs {
+
 				var ip net.IP
 				switch v := addr.(type) {
 				case *net.IPNet:
@@ -68,7 +69,7 @@ func getIP() netMACIP {
 					t2, _ := strconv.Atoi(tpart[2])
 					t3, _ := strconv.Atoi(tpart[3])
 
-					if (t0 == 10) || (t0 == 192 && t1 == 168) || (t0 == 172 && t1 > 15 && t1 < 32) {
+					if ((t0 == 192 && t1 == 168) || (t0 == 10) || (t0 == 172 && t1 > 15 && t1 < 32)) && t3 != 1 && mac != "" {
 						strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
 						return netMACIP{strIP, mac}
 					}
@@ -247,7 +248,7 @@ func main() {
 	}
 
 	if !silent {
-		fmt.Println("Successfully Opened conf.json")
+		fmt.Println("Successfully opened conf.json")
 	}
 
 	// defer the closing of our jsonFile so that we can parse it later on
@@ -267,28 +268,45 @@ func main() {
 	var emptyConfig bool
 	var timePeriod int
 
-	if confResult["connect"]["period"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][period] is empty OR JSON structure error")
+	for key, val := range confResult["connect"] {
+		if val == "" {
+			fmt.Println("Config fatal error: Parameter [connect][" + key + "] is empty OR JSON structure error")
+			emptyConfig = true
+		}
+	}
+
+	url := confResult["connect"]["url"]
+	if url == "" {
+		fmt.Println("Config fatal error: Parameter [connect][url] is required.")
 		emptyConfig = true
 	}
-	if confResult["connect"]["url"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][url] is empty OR JSON structure error")
+
+	token := confResult["connect"]["token"]
+	if token == "" {
+		fmt.Println("Config fatal error: Parameter [connect][token] is required.")
 		emptyConfig = true
 	}
-	if confResult["connect"]["token"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][token] is empty OR JSON structure error")
+
+	pin := confResult["connect"]["pin"]
+	if pin == "" {
+		fmt.Println("Config fatal error: Parameter [connect][pin] is required.")
 		emptyConfig = true
 	}
-	if confResult["connect"]["pin"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][pin] is empty OR JSON structure error")
+
+	batchName := confResult["connect"]["batch"]
+	if batchName == "" {
+		fmt.Println("Config fatal error: Parameter [connect][batch] is required.")
 		emptyConfig = true
 	}
-	if confResult["connect"]["batch"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][batch] is empty OR JSON structure error")
+
+	batchPath := confResult["connect"]["path"]
+	if batchPath == "" {
+		fmt.Println("Config fatal error: Parameter [connect][path] is required.")
 		emptyConfig = true
 	}
-	if confResult["connect"]["path"] == "" {
-		fmt.Println("Config fatal error: Parameter [connect][path] is empty OR JSON structure error")
+
+	if _, err := os.Stat(batchPath + batchName); err != nil {
+		fmt.Println("Config fatal error: Batch file", batchPath+batchName, "not exists. Check it")
 		emptyConfig = true
 	}
 
@@ -298,22 +316,28 @@ func main() {
 	}
 
 	period := confResult["connect"]["period"]
-	url := confResult["connect"]["url"]
-	token := confResult["connect"]["token"]
-	pin := confResult["connect"]["pin"]
-	batchName := confResult["connect"]["batch"]
-	batchPath := confResult["connect"]["path"]
+	if period == "" {
+		period = "60"
+	}
+
 	timePeriod, _ = strconv.Atoi(period)
 
 	if timePeriod < 60 {
 		timePeriod = 60
 	}
 
-	if _, err := os.Stat(batchPath + batchName); err != nil {
-		fmt.Println("Fatal error. Batch file not exists. Check its path")
-		fmt.Println("use -help argument")
-		os.Exit(0)
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Println(err)
 	}
+
+	netResult := getIP()
+
+	queryPIN := "&mfpin=" + pin
+	queryPCName := "&mfname=" + hostname
+	queryIP := "&mfip=" + netResult.ip
+	queryMAC := "&mfmac=" + netResult.mac
+
 	// начало цикла проверки
 	for {
 		startTimeNow := time.Now()
@@ -384,24 +408,13 @@ func main() {
 			}
 		}
 
-		hostname, err := os.Hostname()
-		if err != nil {
-			fmt.Println(err)
-		}
-
 		uptime, _ := getUptime()
 
 		CompUptime, _ := time.ParseDuration(fmt.Sprint(uptime))
 
 		PCUp := fmt.Sprint(int(CompUptime.Minutes()))
 
-		netResult := getIP()
-
-		queryPIN := "&mfpin=" + pin
-		queryIP := "&mfip=" + netResult.ip
-		queryMAC := "&mfmac=" + netResult.mac
 		queryUPTime := "&mfuptime=" + PCUp
-		queryPCName := "&mfname=" + hostname
 
 		dt := time.Now()
 
