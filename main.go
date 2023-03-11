@@ -429,17 +429,20 @@ func main() {
 		urlQuery = ""
 
 		if err != nil {
-			//			log.Fatal(err)
+
 			lessInfoErr := strings.Replace(err.Error(), token, "[token]", -1)
 			lessInfoErr = strings.Replace(lessInfoErr, pin, "[pin]", -1)
 
 			log.Println(lessInfoErr)
 			time.Sleep(15 * time.Second)
+
 		} else {
+
 			if !silent {
 				fmt.Println("\n-----------------")
 				log.Println("Success.")
 			}
+
 			timer(startTime, timePeriod, silent)
 		}
 
