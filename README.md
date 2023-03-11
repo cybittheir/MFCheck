@@ -1,9 +1,9 @@
 # MFCheck
 
-Use JSON like this.
+_Use JSON like this._
 
-conf.json:
-
+## conf.json:
+```
 {
 	"connect": {
 		"url": "https://[url]/",
@@ -26,9 +26,9 @@ conf.json:
 			}
 	}
 }
+```
+## Options:
+* -s (OR -silent): hiding all messages except errors
+* -h (OR -help): this message
 
-Options:
--s (OR -silent): hiding all messages except errors
--h (OR -help): this message
-
-Ctrl+C for exit
+_Ctrl+C for exit_
