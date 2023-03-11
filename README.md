@@ -2,7 +2,7 @@
 
 _Use JSON like this._
 
-## conf.json:
+## conf.json
 ```
 {	
 	"connect": {
