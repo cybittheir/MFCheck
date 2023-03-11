@@ -1,10 +1,10 @@
 # MFCheck
 
-Use JSON like this.
+_Use JSON like this._
 
-conf.json:
-
-{
+## conf.json:
+```
+{	
 	"connect": {
 		"url": "https://[url]/",
 		"token": "[token]",
@@ -25,3 +25,4 @@ conf.json:
 			}
 	}
 }
+```
