@@ -10,7 +10,8 @@ _Use JSON like this._
 		"token": "[token]",
 		"pin": "[PIN]",
 		"batch": "filename.bat",
-		"path": "C:\\PATH\\"
+		"path": "C:\\PATH\\",
+		"period": "61" [sec]
 	},
 	"check": {
 			"process": {
@@ -25,4 +26,3 @@ _Use JSON like this._
 			}
 	}
 }
-```
