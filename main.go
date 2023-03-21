@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -36,51 +37,53 @@ func getIP() netMACIP {
 
 	if err != nil {
 		fmt.Println(err)
-	}
+	} else {
 
-	// handle err
-	for _, i := range ifaces {
-		addrs, err := i.Addrs()
-		status := i.Flags.String()
-		mac := i.HardwareAddr.String()
+		// handle err
+		for _, i := range ifaces {
+			addrs, err := i.Addrs()
+			status := i.Flags.String()
+			mac := i.HardwareAddr.String()
 
-		statuses := strings.Split(status, "|")
+			statuses := strings.Split(status, "|")
 
-		if err != nil {
-			fmt.Println(err)
-		} else if statuses[0] == "up" {
-			// handle err
-			for _, addr := range addrs {
+			if err != nil {
+				fmt.Println(err)
+			} else if statuses[0] == "up" {
+				// handle err
+				for _, addr := range addrs {
 
-				var ip net.IP
-				switch v := addr.(type) {
-				case *net.IPNet:
-					ip = v.IP
-				case *net.IPAddr:
-					ip = v.IP
-				}
-
-				// process IP address
-				tpart := strings.Split(ip.String(), ".")
-
-				if len(tpart) == 4 {
-					t0, _ := strconv.Atoi(tpart[0])
-					t1, _ := strconv.Atoi(tpart[1])
-					t2, _ := strconv.Atoi(tpart[2])
-					t3, _ := strconv.Atoi(tpart[3])
-
-					if ((t0 == 192 && t1 == 168) || (t0 == 10) || (t0 == 172 && t1 > 15 && t1 < 32)) && t3 != 1 && mac != "" {
-						strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
-						return netMACIP{strIP, mac}
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
 					}
 
+					// process IP address
+					tpart := strings.Split(ip.String(), ".")
+
+					if len(tpart) == 4 {
+						t0, _ := strconv.Atoi(tpart[0])
+						t1, _ := strconv.Atoi(tpart[1])
+						t2, _ := strconv.Atoi(tpart[2])
+						t3, _ := strconv.Atoi(tpart[3])
+
+						if ((t0 == 192 && t1 == 168) || (t0 == 10) || (t0 == 172 && t1 > 15 && t1 < 32)) && t3 != 1 && mac != "" {
+							strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
+							return netMACIP{strIP, mac}
+						}
+
+					}
 				}
 			}
 		}
+
 	}
 
+	fmt.Println("Error: all interfaces are DOWN")
 	return netMACIP{}
-
 }
 
 func isProcRunning(batchPath string, batchName string, name string, silent bool) (bool, error) {
@@ -112,10 +115,38 @@ func isProcRunning(batchPath string, batchName string, name string, silent bool)
 
 func checkHost(host map[string]string) (bool, error) {
 
-	hostIP := host["ip"]
 	port := host["port"]
+
+	hostIP := host["ip"]
 	address := net.JoinHostPort(hostIP, port)
 	conn, err := net.DialTimeout("tcp", address, time.Second)
+
+	results := make(map[string]bool)
+
+	if err != nil {
+		results[port] = false
+		return false, err
+		// todo log handler
+	} else {
+		if conn != nil {
+			results[port] = true
+			_ = conn.Close()
+			return results[port], nil
+		} else {
+			results[port] = false
+			return false, nil
+		}
+	}
+
+}
+
+func checkTarget(host map[string]string) (bool, error) {
+
+	port := host["port"]
+	target := host["address"]
+	targetAddress := net.JoinHostPort(target, port)
+	conn, err := net.DialTimeout("tcp", targetAddress, time.Second)
+
 	results := make(map[string]bool)
 
 	if err != nil {
@@ -275,8 +306,8 @@ func main() {
 		}
 	}
 
-	url := confResult["connect"]["url"]
-	if url == "" {
+	target_url := confResult["connect"]["url"]
+	if target_url == "" {
 		fmt.Println("Config fatal error: Parameter [connect][url] is required.")
 		emptyConfig = true
 	}
@@ -333,6 +364,11 @@ func main() {
 
 	netResult := getIP()
 
+	for netResult.mac == "" && netResult.ip == "" {
+		time.Sleep(10 * time.Second)
+		netResult = getIP()
+	}
+
 	queryPIN := "&mfpin=" + pin
 	queryPCName := "&mfname=" + hostname
 	queryIP := "&mfip=" + netResult.ip
@@ -340,11 +376,11 @@ func main() {
 
 	// начало цикла проверки
 	for {
-		startTimeNow := time.Now()
-		startTime := startTimeNow.Unix()
-
 		procList := ""
 		deviceList := ""
+
+		startTimeNow := time.Now()
+		startTime := startTimeNow.Unix()
 
 		if len(checkProc["check"]["process"]) > 0 {
 
@@ -422,7 +458,20 @@ func main() {
 
 		urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
 
-		_, err = sendQuery(url, token, urlQuery, silent)
+		var target map[string]string
+
+		target = make(map[string]string)
+
+		u, _ := url.Parse(target_url)
+
+		target["address"] = u.Host
+		target["port"] = u.Scheme
+
+		_, err = checkTarget(target)
+
+		if err == nil {
+			_, err = sendQuery(target_url, token, urlQuery, silent)
+		}
 
 		procList = ""
 		queryTIME = ""
@@ -434,13 +483,13 @@ func main() {
 			lessInfoErr = strings.Replace(lessInfoErr, pin, "[pin]", -1)
 
 			log.Println(lessInfoErr)
-			time.Sleep(15 * time.Second)
+			time.Sleep(10 * time.Second)
 
 		} else {
 
 			if !silent {
 				fmt.Println("\n-----------------")
-				log.Println("Success.")
+				log.Println("Done.")
 			}
 
 			timer(startTime, timePeriod, silent)
