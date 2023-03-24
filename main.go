@@ -1,3 +1,17 @@
+/*
+
+Getting some information from PC:
+  - uptime;
+  - PC time;
+  - name;
+  - IP & MAC;
+  - selected processes running
+
+  and sending results to server via GET request
+
+  Aleksandr Lovin aka cybittheir
+*/
+
 package main
 
 import (
@@ -31,7 +45,7 @@ type netMACIP struct {
 }
 
 func getIP() netMACIP {
-	// getting PCs IP-address
+	// getting PCs IP-address and MAC
 
 	ifaces, err := net.Interfaces()
 
@@ -113,7 +127,9 @@ func isProcRunning(batchPath string, batchName string, name string, silent bool)
 	return false, nil
 }
 
+/*
 func checkHost(host map[string]string) (bool, error) {
+	// checking access for local devices
 
 	port := host["port"]
 
@@ -139,11 +155,24 @@ func checkHost(host map[string]string) (bool, error) {
 	}
 
 }
+*/
 
 func checkTarget(host map[string]string) (bool, error) {
-
+	// checking access for any target host (local and remote)
+	target := ""
 	port := host["port"]
-	target := host["address"]
+	if host["address"] != "" {
+
+		target = host["address"]
+
+	} else if host["ip"] != "" {
+
+		target = host["ip"]
+
+	} else {
+		return false, nil
+	}
+
 	targetAddress := net.JoinHostPort(target, port)
 	conn, err := net.DialTimeout("tcp", targetAddress, time.Second)
 
@@ -197,7 +226,7 @@ func sendQuery(url string, token string, urlQuery string, silent bool) (bool, er
 }
 
 func timer(startTime int64, timePeriod int, silent bool) {
-
+	// set timer for pause
 	jobTimeNow := time.Now()
 	jobTime := jobTimeNow.Unix() - startTime
 
@@ -213,7 +242,7 @@ func timer(startTime int64, timePeriod int, silent bool) {
 }
 
 func initArgs() (bool, error) {
-
+	// reading starting parameters
 	silent := false
 
 	if len(os.Args) != 1 {
@@ -298,6 +327,7 @@ func main() {
 
 	var emptyConfig bool
 	var timePeriod int
+	// checking config parameters
 
 	for key, val := range confResult["connect"] {
 		if val == "" {
@@ -335,7 +365,7 @@ func main() {
 		fmt.Println("Config fatal error: Parameter [connect][path] is required.")
 		emptyConfig = true
 	}
-
+	// check batchfile exists
 	if _, err := os.Stat(batchPath + batchName); err != nil {
 		fmt.Println("Config fatal error: Batch file", batchPath+batchName, "not exists. Check it")
 		emptyConfig = true
@@ -357,11 +387,13 @@ func main() {
 		timePeriod = 60
 	}
 
+	// get hostname
 	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Println(err)
 	}
 
+	// get IP & MAC
 	netResult := getIP()
 
 	for netResult.mac == "" && netResult.ip == "" {
@@ -374,7 +406,7 @@ func main() {
 	queryIP := "&mfip=" + netResult.ip
 	queryMAC := "&mfmac=" + netResult.mac
 
-	// начало цикла проверки
+	// start checking running processes
 	for {
 		procList := ""
 		deviceList := ""
@@ -398,13 +430,13 @@ func main() {
 					forCheckParam := i
 
 					if isRunning {
-						procList = procList + "&" + forCheckParam + "=9"
+						procList = procList + "&" + forCheckParam + "=9" // just because I decide this
 					} else {
 						procList = procList + "&" + forCheckParam + "=1"
 					}
 				}
 			}
-
+			// print results if -s not used
 			if !silent {
 				fmt.Println(" Finished")
 			}
@@ -415,6 +447,8 @@ func main() {
 			fmt.Println("use -help argument")
 		}
 
+		// start checking devices connection
+
 		if len(checkConn["check"]["device"]) > 0 {
 			if !silent {
 				fmt.Println("devices checking:")
@@ -422,7 +456,8 @@ func main() {
 			for i, v := range checkConn["check"]["device"] {
 				if len(v) > 0 {
 
-					deviceOk, _ := checkHost(v)
+					//deviceOk, _ := checkHost(v) //left while not release
+					deviceOk, _ := checkTarget(v)
 
 					if deviceOk {
 						if !silent {
@@ -444,12 +479,14 @@ func main() {
 			}
 		}
 
+		// getting another parameters of PC
 		uptime, _ := getUptime()
 
 		CompUptime, _ := time.ParseDuration(fmt.Sprint(uptime))
 
 		PCUp := fmt.Sprint(int(CompUptime.Minutes()))
 
+		// collecting the query string for target
 		queryUPTime := "&mfuptime=" + PCUp
 
 		dt := time.Now()
@@ -458,6 +495,7 @@ func main() {
 
 		urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
 
+		// checking target is accessable
 		var target map[string]string
 
 		target = make(map[string]string)
@@ -469,6 +507,7 @@ func main() {
 
 		_, err = checkTarget(target)
 
+		// if OK sending query to target, then pause for 'timeout' seconds in config
 		if err == nil {
 			_, err = sendQuery(target_url, token, urlQuery, silent)
 		}
@@ -477,6 +516,7 @@ func main() {
 		queryTIME = ""
 		urlQuery = ""
 
+		// if error - print message and waiting 10 seconds before next checking
 		if err != nil {
 
 			lessInfoErr := strings.Replace(err.Error(), token, "[token]", -1)
