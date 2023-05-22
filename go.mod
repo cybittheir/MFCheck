@@ -1,3 +1,3 @@
-module checkLink
+module github.com/cybittheir/MFCheck
 
-go 1.19
+go 1.20

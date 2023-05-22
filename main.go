@@ -36,7 +36,13 @@ var (
 	appname      string
 	version      string
 	build        string
-	getTickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
+	getTickCount      = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
+	silent       bool = false // display all messages
+)
+
+const (
+	def_period  = 60 // default circle period
+	err_timeout = 10 // timeout if connections error
 )
 
 type netMACIP struct {
@@ -44,67 +50,82 @@ type netMACIP struct {
 	mac string
 }
 
+/*
+func Greeting() {
+
+	fmt.Println(appname, version, "build", build)
+	fmt.Println("Simple agent for checking links to devices and running applications on remote PC")
+	fmt.Println("https://github.com/cybittheir/MFCheck")
+
+}
+*/
+
 func getIP() netMACIP {
 	// getting PCs IP-address and MAC
 
-	ifaces, err := net.Interfaces()
+	mac := ""
+	strIP := ""
 
-	if err != nil {
-		fmt.Println(err)
-	} else {
+	for mac == "" && strIP == "" {
+		ifaces, err := net.Interfaces()
 
-		// handle err
-		for _, i := range ifaces {
-			addrs, err := i.Addrs()
-			status := i.Flags.String()
-			mac := i.HardwareAddr.String()
+		if err == nil {
 
-			statuses := strings.Split(status, "|")
+			// handle err
+			for _, i := range ifaces {
+				addrs, err := i.Addrs()
+				status := i.Flags.String()
+				mac = i.HardwareAddr.String()
 
-			if err != nil {
-				fmt.Println(err)
-			} else if statuses[0] == "up" {
-				// handle err
-				for _, addr := range addrs {
+				statuses := strings.Split(status, "|")
 
-					var ip net.IP
-					switch v := addr.(type) {
-					case *net.IPNet:
-						ip = v.IP
-					case *net.IPAddr:
-						ip = v.IP
-					}
+				if err != nil {
+					log.Println(err)
+				} else if statuses[0] == "up" {
+					// handle err
+					for _, addr := range addrs {
 
-					// process IP address
-					tpart := strings.Split(ip.String(), ".")
-
-					if len(tpart) == 4 {
-						t0, _ := strconv.Atoi(tpart[0])
-						t1, _ := strconv.Atoi(tpart[1])
-						t2, _ := strconv.Atoi(tpart[2])
-						t3, _ := strconv.Atoi(tpart[3])
-
-						if ((t0 == 192 && t1 == 168) || (t0 == 10) || (t0 == 172 && t1 > 15 && t1 < 32)) && t3 != 1 && mac != "" {
-							strIP := strconv.Itoa(t0) + "." + strconv.Itoa(t1) + "." + strconv.Itoa(t2) + "." + strconv.Itoa(t3)
-							return netMACIP{strIP, mac}
+						var ip net.IP
+						switch v := addr.(type) {
+						case *net.IPNet:
+							ip = v.IP
+						case *net.IPAddr:
+							ip = v.IP
 						}
 
+						// process IP address
+						tpart := strings.Split(ip.String(), ".")
+
+						if len(tpart) == 4 {
+							t0, _ := strconv.Atoi(tpart[0])
+							t1, _ := strconv.Atoi(tpart[1])
+							t2, _ := strconv.Atoi(tpart[2])
+							t3, _ := strconv.Atoi(tpart[3])
+
+							if ((t0 == 192 && t1 == 168) || (t0 == 10) || (t0 == 172 && t1 > 15 && t1 < 32)) && t3 != 1 && mac != "" {
+								strIP = fmt.Sprintf("%d.%d.%d.%d", t0, t1, t2, t3)
+								return netMACIP{strIP, mac}
+							}
+
+						}
 					}
 				}
 			}
+
+		} else {
+			log.Println(err)
 		}
 
+		log.Println("Error: all interfaces are DOWN")
+		time.Sleep(err_timeout * time.Second)
 	}
 
-	fmt.Println("Error: all interfaces are DOWN")
 	return netMACIP{}
 }
 
-func isProcRunning(batchPath string, batchName string, name string, silent bool) (bool, error) {
+func isProcRunning(batchPath, batchName, name string) (bool, error) {
 	//check if process is running. Windows tasklist in batchfile uses
-	if !silent {
-		fmt.Print(".")
-	}
+	printMSG(".")
 
 	cmd := exec.Command(batchPath+batchName, name)
 	cmd.Dir = batchPath
@@ -112,50 +133,42 @@ func isProcRunning(batchPath string, batchName string, name string, silent bool)
 	out, err := cmd.Output()
 
 	if err != nil {
-		if !silent {
-			fmt.Print(".")
-		}
+		printMSG(".")
 		return false, err
 	}
 
 	if bytes.Contains(out, []byte(name)) {
-		if !silent {
-			fmt.Print(".")
-		}
+		printMSG(".")
 		return true, nil
 	}
 	return false, nil
 }
 
-/*
-func checkHost(host map[string]string) (bool, error) {
-	// checking access for local devices
-
-	port := host["port"]
-
-	hostIP := host["ip"]
-	address := net.JoinHostPort(hostIP, port)
-	conn, err := net.DialTimeout("tcp", address, time.Second)
-
-	results := make(map[string]bool)
-
-	if err != nil {
-		results[port] = false
-		return false, err
-		// todo log handler
-	} else {
-		if conn != nil {
-			results[port] = true
-			_ = conn.Close()
-			return results[port], nil
-		} else {
-			results[port] = false
-			return false, nil
-		}
+func printMSGln(message string) {
+	if !silent {
+		fmt.Println(message)
 	}
+}
+
+func printMSG(message string) {
+	if !silent {
+		fmt.Print(message)
+	}
+}
+
+func getTargetHost(target_url string) (map[string]string, error) {
+
+	var target map[string]string
+	target = make(map[string]string)
+
+	u, err := url.Parse(target_url)
+
+	target["address"] = u.Host
+	target["port"] = u.Scheme
+
+	return target, err
 
 }
-*/
 
 func checkTarget(host map[string]string) (bool, error) {
 	// checking access for any target host (local and remote)
@@ -204,28 +217,27 @@ func getUptime() (time.Duration, error) {
 	return time.Duration(ret) * time.Millisecond, nil
 }
 
-func sendQuery(url string, token string, urlQuery string, silent bool) (bool, error) {
+func sendQuery(url, token, urlQuery string) (bool, error) {
 	// Make HTTP GET request
 	response, err := http.Get(url + "?UID=" + token + urlQuery)
-	if err != nil {
-		return false, err
-	} else {
+	if err == nil {
 		if !silent {
-			fmt.Println("Sending info to server:")
-			fmt.Println(urlQuery)
+			io.WriteString(os.Stdout, fmt.Sprintf("Sending info to server: \n%s", urlQuery))
 		}
 		// Copy data from the response to standard output
-		_, err := io.Copy(os.Stdout, response.Body)
-		if err != nil {
-			return false, err
+		_, warning := io.Copy(os.Stdout, response.Body)
+		if warning != nil {
+			return false, warning
 		}
+	} else {
+		return false, err
 	}
 	defer response.Body.Close()
 	return true, nil
 
 }
 
-func timer(startTime int64, timePeriod int, silent bool) {
+func timer(startTime int64, timePeriod int) {
 	// set timer for pause
 	jobTimeNow := time.Now()
 	jobTime := jobTimeNow.Unix() - startTime
@@ -233,17 +245,14 @@ func timer(startTime int64, timePeriod int, silent bool) {
 	usePeriod := timePeriod - int(jobTime)
 	period := fmt.Sprintf("%d", timePeriod)
 
-	if !silent {
-		fmt.Println("\n\nSleeping for " + period + " seconds... Zzz...\n")
-	}
+	printMSGln("\n\nSleeping for " + period + " seconds... Zzz...\n")
 
 	time.Sleep(time.Duration(usePeriod) * time.Second)
 
 }
 
-func initArgs() (bool, error) {
+func initArgs() {
 	// reading starting parameters
-	silent := false
 
 	if len(os.Args) != 1 {
 
@@ -278,44 +287,54 @@ func initArgs() (bool, error) {
 
 			os.Exit(0)
 		} else if arg == "-s" || arg == "-silent" {
-			silent = true
-			return silent, nil
+			silent = true // display only main messages & errors
 		}
 	}
+}
 
-	return silent, nil
+func readConfJSON() ([]byte, error) {
+
+	// Open our jsonFile
+
+	var byteValue []byte
+	jsonFile, err := os.Open("conf.json")
+	// if we os.Open returns an error then handle it
+
+	if err == nil {
+
+		// defer the closing of our jsonFile so that we can parse it later on
+		defer jsonFile.Close()
+
+		byteValue, warning := ioutil.ReadAll(jsonFile)
+
+		return byteValue, warning
+	} else {
+		log.Println("Cannot open conf.json")
+		log.Println(err)
+		os.Exit(1)
+	}
+	return byteValue, err
 
 }
 
 func main() {
 
-	fmt.Println(appname, version, "build", build)
-	fmt.Println("Simple agent for checking links to devices and running applications on remote PC")
-	fmt.Println("https://github.com/cybittheir/MFCheck")
+	//	fmt.Println(appname, version, "build", build)
+	//	fmt.Println("Simple agent for checking links to devices and running applications on remote PC")
+	//	fmt.Println("https://github.com/cybittheir/MFCheck")
 
-	silent, _ := initArgs()
+	Greeting()
 
-	// Open our jsonFile
+	initArgs() // read commandline parameters
 
-	jsonFile, err := os.Open("conf.json")
+	byteValue, err := readConfJSON()
 
-	// if we os.Open returns an error then handle it
-
-	if err != nil {
-		fmt.Println("Cannot open conf.json")
-		fmt.Println(err)
+	if err == nil {
+		printMSGln("Successfully opened config file")
+	} else {
+		log.Println(err)
 		os.Exit(1)
 	}
-
-	if !silent {
-		fmt.Println("Successfully opened conf.json")
-	}
-
-	// defer the closing of our jsonFile so that we can parse it later on
-
-	defer jsonFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(jsonFile)
 
 	var confResult map[string]map[string]string
 	var checkProc map[string]map[string]map[string]string
@@ -331,73 +350,73 @@ func main() {
 
 	for key, val := range confResult["connect"] {
 		if val == "" {
-			fmt.Println("Config fatal error: Parameter [connect][" + key + "] is empty OR JSON structure error")
+			log.Println("Config fatal error: Parameter [connect][" + key + "] is empty OR JSON structure error")
 			emptyConfig = true
 		}
 	}
 
 	target_url := confResult["connect"]["url"]
 	if target_url == "" {
-		fmt.Println("Config fatal error: Parameter [connect][url] is required.")
+		log.Println("Config fatal error: Parameter [connect][url] is required.")
 		emptyConfig = true
 	}
 
 	token := confResult["connect"]["token"]
 	if token == "" {
-		fmt.Println("Config fatal error: Parameter [connect][token] is required.")
+		log.Println("Config fatal error: Parameter [connect][token] is required.")
 		emptyConfig = true
 	}
 
 	pin := confResult["connect"]["pin"]
 	if pin == "" {
-		fmt.Println("Config fatal error: Parameter [connect][pin] is required.")
+		log.Println("Config fatal error: Parameter [connect][pin] is required.")
 		emptyConfig = true
 	}
 
 	batchName := confResult["connect"]["batch"]
 	if batchName == "" {
-		fmt.Println("Config fatal error: Parameter [connect][batch] is required.")
+		log.Println("Config fatal error: Parameter [connect][batch] is required.")
 		emptyConfig = true
 	}
 
 	batchPath := confResult["connect"]["path"]
 	if batchPath == "" {
-		fmt.Println("Config fatal error: Parameter [connect][path] is required.")
+		log.Println("Config fatal error: Parameter [connect][path] is required.")
 		emptyConfig = true
 	}
 	// check batchfile exists
 	if _, err := os.Stat(batchPath + batchName); err != nil {
-		fmt.Println("Config fatal error: Batch file", batchPath+batchName, "not exists. Check it")
+		log.Println("Config fatal error: Batch file", batchPath+batchName, "not exists. Check it")
 		emptyConfig = true
 	}
 
 	if emptyConfig {
-		fmt.Println("use -help argument")
+		log.Println("use -help argument")
 		os.Exit(0)
 	}
 
 	period := confResult["connect"]["period"]
 	if period == "" {
-		period = "60"
+		period = strconv.Itoa(def_period)
 	}
 
 	timePeriod, _ = strconv.Atoi(period)
 
-	if timePeriod < 60 {
-		timePeriod = 60
+	if timePeriod < def_period {
+		timePeriod = def_period
 	}
 
 	// get hostname
 	hostname, err := os.Hostname()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	// get IP & MAC
 	netResult := getIP()
 
 	for netResult.mac == "" && netResult.ip == "" {
-		time.Sleep(10 * time.Second)
+		time.Sleep(err_timeout * time.Second)
 		netResult = getIP()
 	}
 
@@ -425,7 +444,7 @@ func main() {
 				if v != "" {
 					forCheck := v
 
-					isRunning, _ := isProcRunning(batchPath, batchName, forCheck, silent)
+					isRunning, _ := isProcRunning(batchPath, batchName, forCheck)
 
 					forCheckParam := i
 
@@ -450,9 +469,7 @@ func main() {
 		// start checking devices connection
 
 		if len(checkConn["check"]["device"]) > 0 {
-			if !silent {
-				fmt.Println("devices checking:")
-			}
+			printMSGln("devices checking:")
 			for i, v := range checkConn["check"]["device"] {
 				if len(v) > 0 {
 
@@ -460,19 +477,14 @@ func main() {
 					deviceOk, _ := checkTarget(v)
 
 					if deviceOk {
-						if !silent {
-							fmt.Println("...", i, "is OK")
-						}
+						printMSGln("... " + i + " is OK")
 					} else {
-						if !silent {
-							fmt.Println("...", i, "Failed")
-						}
+						printMSGln("... " + i + " Failed")
 						deviceList = deviceList + "&x_" + i + "=failed"
-
 					}
 				} else {
 
-					fmt.Println(i, "!error conf record!")
+					log.Println(i, "!error conf record!")
 
 				}
 
@@ -496,20 +508,13 @@ func main() {
 		urlQuery := queryPIN + queryTIME + queryIP + queryMAC + queryUPTime + queryPCName + procList + deviceList
 
 		// checking target is accessable
-		var target map[string]string
+		target_host, _ := getTargetHost(target_url)
 
-		target = make(map[string]string)
-
-		u, _ := url.Parse(target_url)
-
-		target["address"] = u.Host
-		target["port"] = u.Scheme
-
-		_, err = checkTarget(target)
+		_, err = checkTarget(target_host)
 
 		// if OK sending query to target, then pause for 'timeout' seconds in config
 		if err == nil {
-			_, err = sendQuery(target_url, token, urlQuery, silent)
+			_, err = sendQuery(target_url, token, urlQuery)
 		}
 
 		procList = ""
@@ -517,22 +522,20 @@ func main() {
 		urlQuery = ""
 
 		// if error - print message and waiting 10 seconds before next checking
-		if err != nil {
+		if err == nil {
+			fmt.Println("")
+			log.Println("\n--------------------")
+
+			timer(startTime, timePeriod)
+
+		} else {
 
 			lessInfoErr := strings.Replace(err.Error(), token, "[token]", -1)
 			lessInfoErr = strings.Replace(lessInfoErr, pin, "[pin]", -1)
 
 			log.Println(lessInfoErr)
-			time.Sleep(10 * time.Second)
+			time.Sleep(err_timeout * time.Second)
 
-		} else {
-
-			if !silent {
-				fmt.Println("\n-----------------")
-				log.Println("Done.")
-			}
-
-			timer(startTime, timePeriod, silent)
 		}
 
 	}
